@@ -1,0 +1,2 @@
+dependencies:
+  espressif/ssd1306: "^1.0.0"

@@ -1,0 +1,26 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "PowerShell (ESP-IDF)": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "& 'C:\\esp\\v5.5.1\\esp-idf\\export.ps1'"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell (ESP-IDF)",
+    "idf.currentSetup": "C:\\esp\\v5.5.1\\esp-idf",
+    "idf.flashType": "UART",
+    "idf.portWin": "COM7",
+    "cmake.sourceDirectory": "C:/Users/1kfil/Documents/C/Astro/main",
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32s2"
+    },
+    "idf.openOcdConfigs": [
+        "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target/esp32s2.cfg"
+    ],
+    "stm32-for-vscode.makePath": false
+}
