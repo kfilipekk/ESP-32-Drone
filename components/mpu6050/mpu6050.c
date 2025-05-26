@@ -11,8 +11,14 @@ esp_err_t mpu6050_init(void)
 
     //check device ID
     ret = i2c_bus_read_bytes(MPU6050_I2C_ADDRESS, MPU6050_WHO_AM_I, &data, 1);
-    if (ret != ESP_OK || data != 0x68) {
-        ESP_LOGE(TAG, "MPU6050 not found! (WhoAmI: 0x%02x)", data);
+    
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C Read Failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    
+    if (data != 0x68) {
+        ESP_LOGE(TAG, "MPU6050 Incorrect ID. Expected 0x68, got 0x%02x", data);
         return ESP_FAIL;
     }
 
