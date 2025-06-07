@@ -7,9 +7,8 @@
 extern "C" {
 #endif
 
-//default I2C configuration for ESP32-S2 Mini
-#define I2C_MASTER_SCL_IO           GPIO_NUM_35
-#define I2C_MASTER_SDA_IO           GPIO_NUM_33
+#define I2C_MASTER_SCL_IO           GPIO_NUM_10
+#define I2C_MASTER_SDA_IO           GPIO_NUM_11
 #define I2C_MASTER_NUM              I2C_NUM_0        //I2C port number
 #define I2C_MASTER_FREQ_HZ          400000           //I2C master clock frequency
 #define I2C_MASTER_TX_BUF_DISABLE   0                //I2C master doesn't need buffer
