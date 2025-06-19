@@ -23,18 +23,6 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Init");
 
     motor_init();
-
-    //power-on test for motors
-    ESP_LOGI(TAG, "Testing Motors Sequence...");
-    for(int i=0; i<4; i++) {
-        ESP_LOGI(TAG, "Spinning Motor %d", i);
-        motor_set_thrust(i, 30.0f); //30% thrust
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        motor_set_thrust(i, 0.0f);
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
-    ESP_LOGI(TAG, "Motor Test Complete");
-
     //initialise I2C Bus
     ESP_ERROR_CHECK(i2c_bus_init());
 
@@ -49,22 +37,67 @@ extern "C" void app_main(void)
     configure_led(LED_GREEN_GPIO);
     configure_led(LED_BLUE_GPIO);
 
-    ESP_LOGI(TAG, "blink");
+    ESP_LOGI(TAG, "Logs active. Press UP/DOWN for throttle, LEFT/RIGHT for steering, SPACE to stop.");
+
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    float throttle = 0.0f;
+    float steering = 0.0f;
 
     while (1) {
-        ESP_LOGI(TAG, "Red ON");
-        gpio_set_level(LED_RED_GPIO, 1);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        gpio_set_level(LED_RED_GPIO, 0);
+        int c = getchar();
+        
+        if (c != EOF) {
+            bool update = false;
 
-        ESP_LOGI(TAG, "Green ON");
-        gpio_set_level(LED_GREEN_GPIO, 1);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        gpio_set_level(LED_GREEN_GPIO, 0);
+            if (c == ' ') {
+                throttle = 0.0f;
+                steering = 0.0f;
+                update = true;
+                ESP_LOGI(TAG, "STOP");
+            }
+            else if (c == 0x1B) {
+                int c2 = getchar();
+                if (c2 == '[') {
+                    int c3 = getchar();
+                    switch(c3) {
+                        case 'A':
+                            throttle += 5.0f;
+                            if(throttle > 100.0f) throttle = 100.0f;
+                            update = true;
+                            ESP_LOGI(TAG, "Throttle UP: %.1f", throttle);
+                            break;
+                        case 'B':
+                            throttle -= 5.0f;
+                            if(throttle < 0.0f) throttle = 0.0f;
+                            update = true;
+                            ESP_LOGI(TAG, "Throttle DOWN: %.1f", throttle);
+                            break;
+                        case 'C':
+                            steering += 5.0f;
+                            update = true;
+                            ESP_LOGI(TAG, "Right: %.1f", steering);
+                            break;
+                        case 'D':
+                            steering -= 5.0f;
+                            update = true;
+                            ESP_LOGI(TAG, "Left: %.1f", steering);
+                            break;
+                    }
+                }
+            }
 
-        ESP_LOGI(TAG, "Blue ON");
-        gpio_set_level(LED_BLUE_GPIO, 1);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        gpio_set_level(LED_BLUE_GPIO, 0);
+            if (update) {
+                float m1 = throttle + steering;
+                float m2 = throttle - steering;
+                float m3 = throttle - steering;
+                float m4 = throttle + steering;
+                
+                motor_set_all(m1, m2, m3, m4);
+            }
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(10)); //prevent watchdog starvation
     }
 }
