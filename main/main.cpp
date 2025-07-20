@@ -7,8 +7,9 @@
 #include "i2c_bus.h"
 #include "mpu6050.h"
 #include "motor.h"
+#include "wifi_control.h"
 
-static const char *TAG = "DRONE_LEDS";
+static const char *TAG = "DRONE_MAIN";
 
 #define LED_RED_GPIO    GPIO_NUM_8
 #define LED_GREEN_GPIO  GPIO_NUM_9
@@ -22,6 +23,9 @@ void configure_led(gpio_num_t pin) {
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "Init");
+
+    //initialise Wi-Fi and Web Server
+    wifi_control_init();
 
     motor_init();
     //initialise I2C Bus
@@ -56,6 +60,17 @@ extern "C" void app_main(void)
     static InputState input_state = STATE_IDLE;
 
     while (1) {
+        //check Wi-Fi Control
+        if (wifi_control_get_data(&throttle, &steering)) {
+             ESP_LOGI(TAG, "WiFi Data -> T:%.1f, S:%.1f", throttle, steering);
+             //use update flag to force motor write
+             float m1 = throttle + steering;
+             float m2 = throttle - steering;
+             float m3 = throttle - steering;
+             float m4 = throttle + steering;
+             motor_set_all(m1, m2, m3, m4);
+        }
+
         int c = getchar();
         
         if (c != EOF) {
