@@ -6,7 +6,7 @@
       "cStandard": "c17",
       "cppStandard": "c++20",
       "intelliSenseMode": "gcc-x64",
-      "compilerPath": "C:\\Espressif\\tools\\riscv32-esp-elf\\esp-14.2.0_20241119\\riscv32-esp-elf\\bin\\riscv32-esp-elf-gcc.exe"
+      "compilerPath": "C:\\Espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20241119\\xtensa-esp-elf\\bin\\xtensa-esp32s2-elf-gcc.exe"
     }
   ],
   "version": 4

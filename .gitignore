@@ -13,4 +13,4 @@ __pycache__/
 *.code-workspace
 
 # Project specific
-/recordings/*.wav
+components\wifi_control\Kconfig
