@@ -9,7 +9,7 @@ extern "C" {
 
 #define MPU6050_I2C_ADDRESS     0x68
 
-//MPU6050 Register Map
+// mpu6050 register map
 #define MPU6050_SMPLRT_DIV      0x19
 #define MPU6050_CONFIG          0x1A
 #define MPU6050_GYRO_CONFIG     0x1B
@@ -28,22 +28,17 @@ typedef struct {
     float temp;
 } mpu6050_data_t;
 
-/**
- * @brief Initialise the MPU6050 sensor
- * Configures DLPF, Gyro/Accel ranges, and wakes up the device.
- */
+// initialise mpu6050 sensor
 esp_err_t mpu6050_init(void);
 
-/**
- * @brief Read all raw data (Accel + Gyro + Temp)
- * Efficient burst read.
- */
+// read all raw data
 esp_err_t mpu6050_read(mpu6050_data_t *data);
 
-/**
- * @brief Check connection to MPU6050
- */
+// check connection
 esp_err_t mpu6050_test_connection(void);
+
+// set manual gyro offsets
+void mpu6050_set_gyro_offsets(int16_t x_offset, int16_t y_offset, int16_t z_offset);
 
 #ifdef __cplusplus
 }
