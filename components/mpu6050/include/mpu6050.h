@@ -37,6 +37,9 @@ esp_err_t mpu6050_read(mpu6050_data_t *data);
 //check connection to MPU6050
 esp_err_t mpu6050_test_connection(void);
 
+//set manual gyro offsets
+void mpu6050_set_gyro_offsets(int16_t x_offset, int16_t y_offset, int16_t z_offset);
+
 #ifdef __cplusplus
 }
 #endif
