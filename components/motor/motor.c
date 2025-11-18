@@ -17,10 +17,10 @@ typedef struct {
 } motor_config_t;
 
 static const motor_config_t motors[4] = {
-    { .pin = MOTOR_M1_GPIO, .channel = LEDC_CHANNEL_0 },
-    { .pin = MOTOR_M2_GPIO, .channel = LEDC_CHANNEL_1 },
-    { .pin = MOTOR_M3_GPIO, .channel = LEDC_CHANNEL_2 },
-    { .pin = MOTOR_M4_GPIO, .channel = LEDC_CHANNEL_3 }
+    { .pin = MOTOR_M4_GPIO, .channel = LEDC_CHANNEL_0 }, //m1 -> front left
+    { .pin = MOTOR_M1_GPIO, .channel = LEDC_CHANNEL_1 }, //m2 -> front right
+    { .pin = MOTOR_M2_GPIO, .channel = LEDC_CHANNEL_2 }, //m3 -> rear right
+    { .pin = MOTOR_M3_GPIO, .channel = LEDC_CHANNEL_3 }  //m4 -> rear left
 };
 
 void motor_init(void)
