@@ -10,17 +10,17 @@ static const char *TAG = "MOTOR";
 #define MOTOR_LEDC_DUTY_RES     LEDC_TIMER_12_BIT
 #define MOTOR_LEDC_FREQUENCY    15000
 
-//structure to map motor ID to channel
+//structure mapping motor id to channel
 typedef struct {
     int pin;
     ledc_channel_t channel;
 } motor_config_t;
 
 static const motor_config_t motors[4] = {
-    { .pin = MOTOR_M1_GPIO, .channel = LEDC_CHANNEL_0 },
-    { .pin = MOTOR_M2_GPIO, .channel = LEDC_CHANNEL_1 },
-    { .pin = MOTOR_M3_GPIO, .channel = LEDC_CHANNEL_2 },
-    { .pin = MOTOR_M4_GPIO, .channel = LEDC_CHANNEL_3 }
+    { .pin = MOTOR_M4_GPIO, .channel = LEDC_CHANNEL_0 }, //m1 -> front left
+    { .pin = MOTOR_M1_GPIO, .channel = LEDC_CHANNEL_1 }, //m2 -> front right
+    { .pin = MOTOR_M2_GPIO, .channel = LEDC_CHANNEL_2 }, //m3 -> rear right
+    { .pin = MOTOR_M3_GPIO, .channel = LEDC_CHANNEL_3 }  //m4 -> rear left
 };
 
 void motor_init(void)
@@ -43,7 +43,7 @@ void motor_init(void)
             .timer_sel      = MOTOR_LEDC_TIMER,
             .intr_type      = LEDC_INTR_DISABLE,
             .gpio_num       = motors[i].pin,
-            .duty           = 0, // 0%
+            .duty           = 0, //0%
             .hpoint         = 0
         };
         ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
