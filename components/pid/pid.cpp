@@ -42,11 +42,17 @@ float Pid::compute(float setpoint, float measurement)
     prev_error_ = error;
 
     float output = p_out + i_out + d_out;
+    
+    //Debug storage
+    last_p_ = p_out;
+    last_d_ = d_out;
 
-    if (output > output_limit_) {
-        output = output_limit_;
-    } else if (output < -output_limit_) {
-        output = -output_limit_;
+    if (output_limit_ != 0.0f) { //Only limit if non-zero
+        if (output > output_limit_) {
+            output = output_limit_;
+        } else if (output < -output_limit_) {
+            output = -output_limit_;
+        }
     }
 
     return output;
