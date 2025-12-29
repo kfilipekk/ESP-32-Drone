@@ -3,8 +3,34 @@
 
 static const char *TAG = "I2C_BUS";
 
+static void i2c_bus_recover(void) {
+    //manual recovery for stuck sda
+    gpio_reset_pin(I2C_MASTER_SDA_IO);
+    gpio_reset_pin(I2C_MASTER_SCL_IO);
+    
+    gpio_set_direction(I2C_MASTER_SDA_IO, GPIO_MODE_INPUT_OUTPUT_OD);
+    gpio_set_direction(I2C_MASTER_SCL_IO, GPIO_MODE_INPUT_OUTPUT_OD);
+    gpio_set_level(I2C_MASTER_SDA_IO, 1);
+    gpio_set_level(I2C_MASTER_SCL_IO, 1);
+
+    for (int i = 0; i < 9; i++) {
+        gpio_set_level(I2C_MASTER_SCL_IO, 0);
+        esp_rom_delay_us(5);
+        gpio_set_level(I2C_MASTER_SCL_IO, 1);
+        esp_rom_delay_us(5);
+    }
+    //stop condition
+    gpio_set_level(I2C_MASTER_SDA_IO, 0);
+    esp_rom_delay_us(5);
+    gpio_set_level(I2C_MASTER_SCL_IO, 1);
+    esp_rom_delay_us(5);
+    gpio_set_level(I2C_MASTER_SDA_IO, 1);
+}
+
 esp_err_t i2c_bus_init(void)
 {
+    i2c_bus_recover();
+
     int i2c_master_port = I2C_MASTER_NUM;
     
     i2c_config_t conf = {
@@ -16,7 +42,7 @@ esp_err_t i2c_bus_init(void)
         .master = {
             .clk_speed = I2C_MASTER_FREQ_HZ,
         },
-        .clk_flags = 0,
+        .clk_flags = 0, //clear clock flags
     };
 
     esp_err_t err = i2c_param_config(i2c_master_port, &conf);
