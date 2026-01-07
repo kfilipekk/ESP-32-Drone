@@ -1,0 +1,15 @@
+menu "WiFi Configuration"
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default "Qwerty"
+        help
+            SSID (Network Name) of the WiFi network to connect to.
+
+    config WIFI_PASSWORD
+        string "WiFi Password"
+        default "pixel420"
+        help
+            Password for the WiFi network.
+
+endmenu
