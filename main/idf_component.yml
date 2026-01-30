@@ -1,3 +1,2 @@
 dependencies:
-  espressif/ssd1306: ^1.0.0
   espressif/esp_websocket_client: '*'
