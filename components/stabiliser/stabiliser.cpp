@@ -15,7 +15,6 @@
 #define RATE_YAW_KD 0.0f
 #define RATE_YAW_ILIMIT 166.7f
 
-
 #define ANGLE_RP_KP 5.9f
 #define ANGLE_RP_KI 0.0f
 #define ANGLE_RP_KD 0.0f
@@ -87,13 +86,11 @@ void Stabiliser::run(state_estimate_t state, control_command_t command) {
 void Stabiliser::mix_motors(float throttle, float roll, float pitch, float yaw) {
     if(throttle < 0) throttle = 0;
     if(throttle > 100) throttle = 100;
-
-    //normal quad x configuration
+    
     //m1: front left (cw)
     //m2: front right (ccw)
     //m3: rear right (cw)
     //m4: rear left (ccw)
-
     //mixing logic for torque and thrust
     float m1 = throttle + roll + pitch - yaw; //fl
     float m2 = throttle - roll + pitch + yaw; //fr
