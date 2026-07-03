@@ -10,7 +10,5 @@ __pycache__/
 *.pyc
 
 #VS Code
+.vscode/
 *.code-workspace
-
-#project specific
-components\wifi_control\Kconfig
