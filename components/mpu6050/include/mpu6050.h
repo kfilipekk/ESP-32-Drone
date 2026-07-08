@@ -1,53 +1,39 @@
-#pragma once
+#ifndef MPU6050_H
+#define MPU6050_H
 
+#include <cstdint>
+#include <span>
+#include "driver/i2c_master.h"
 #include "esp_err.h"
-#include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace drone {
 
-#define MPU6050_I2C_ADDRESS     0x68
+struct ImuSample {
+    std::int16_t accel_x;
+    std::int16_t accel_y;
+    std::int16_t accel_z;
+    std::int16_t gyro_x;
+    std::int16_t gyro_y;
+    std::int16_t gyro_z;
+};
 
-//MPU6050 Register Map
-#define MPU6050_SMPLRT_DIV      0x19
-#define MPU6050_CONFIG          0x1A
-#define MPU6050_GYRO_CONFIG     0x1B
-#define MPU6050_ACCEL_CONFIG    0x1C
-#define MPU6050_ACCEL_XOUT_H    0x3B
-#define MPU6050_PWR_MGMT_1      0x6B
-#define MPU6050_WHO_AM_I        0x75
+class Mpu6050 {
+public:
+    esp_err_t init();
+    esp_err_t read(ImuSample& sample) const;
+    void set_gyro_offsets(std::int16_t x_offset, std::int16_t y_offset, std::int16_t z_offset);
 
-typedef struct {
-    int16_t accel_x;
-    int16_t accel_y;
-    int16_t accel_z;
-    int16_t gyro_x;
-    int16_t gyro_y;
-    int16_t gyro_z;
-    float temp;
-} mpu6050_data_t;
+private:
+    esp_err_t write_register(std::uint8_t reg, std::uint8_t value) const;
+    esp_err_t read_registers(std::uint8_t reg, std::span<std::uint8_t> data) const;
 
-/**
- * @brief Initialise the MPU6050 sensor
- * Configures DLPF, Gyro/Accel ranges, and wakes up the device.
- */
-esp_err_t mpu6050_init(void);
+    i2c_master_bus_handle_t bus_{nullptr};
+    i2c_master_dev_handle_t device_{nullptr};
+    std::int16_t gx_offset_{0};
+    std::int16_t gy_offset_{0};
+    std::int16_t gz_offset_{0};
+};
 
-/**
- * @brief Read all raw data (Accel + Gyro + Temp)
- * Efficient burst read.
- */
-esp_err_t mpu6050_read(mpu6050_data_t *data);
-
-/**
- * @brief Check connection to MPU6050
- */
-esp_err_t mpu6050_test_connection(void);
-
-//set manual gyro offsets
-void mpu6050_set_gyro_offsets(int16_t x_offset, int16_t y_offset, int16_t z_offset);
-
-#ifdef __cplusplus
 }
+
 #endif

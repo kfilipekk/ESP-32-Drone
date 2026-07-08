@@ -10,7 +10,6 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
-#include "i2c_bus.h"
 #include "mpu6050.h"
 #include "motor.h"
 #include "wifi_control.h"
@@ -23,6 +22,7 @@ static const char *TAG = "DRONE_SYSTEM";
 #define LED_GREEN_GPIO  GPIO_NUM_9
 #define LED_BLUE_GPIO   GPIO_NUM_7
 
+static drone::Mpu6050 imu;
 static Stabiliser stabiliser;
 static Estimator estimator;
 static control_command_t current_command = {0};
@@ -57,7 +57,7 @@ void flight_task(void *pvParameters) {
     const TickType_t xFrequency = period;
     xLastWakeTime = xTaskGetTickCount();
 
-    mpu6050_data_t imu_data;
+    drone::ImuSample imu_data{};
     int64_t last_time = esp_timer_get_time();
 
     while(1) {
@@ -68,7 +68,7 @@ void flight_task(void *pvParameters) {
         if (dt <= 0.0f) dt = 0.001f;
         if (dt > 0.1f) dt = 0.1f; //cap at 100ms
 
-        if (mpu6050_read(&imu_data) == ESP_OK) {
+        if (imu.read(imu_data) == ESP_OK) {
              estimator.update(imu_data, dt);
              
              state_estimate_t state = {
@@ -95,7 +95,7 @@ void flight_task(void *pvParameters) {
              }
 
              if (emergency_stop) {
-                 motor_stop_all();
+                 drone::motor_set_all({});
                  //force command to 0 to ensure pids reset if run is called
                  current_command.throttle = 0.0f;
                  stabiliser.run(state, current_command); //run with 0 throttle to reset pids
@@ -130,11 +130,11 @@ void perform_calibration() {
     const int samples = 200;
     int32_t sum_gx = 0, sum_gy = 0, sum_gz = 0;
     int count = 0;
-    mpu6050_data_t raw = {0};
+    drone::ImuSample raw{};
     
     //warm up sensor
     for(int i=0; i<50; i++) {
-        mpu6050_read(&raw);
+        imu.read(raw);
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
@@ -142,7 +142,7 @@ void perform_calibration() {
     bool led_state = false;
 
     for (int i = 0; i < samples; i++) {
-        if (mpu6050_read(&raw) == ESP_OK) {
+        if (imu.read(raw) == ESP_OK) {
             //read raw data (offsets are 0 initially)
             sum_gx += raw.gyro_x;
             sum_gy += raw.gyro_y;
@@ -161,7 +161,8 @@ void perform_calibration() {
     
     if (count > 0) {
         //set offsets
-        mpu6050_set_gyro_offsets(sum_gx / count, sum_gy / count, sum_gz / count);
+        imu.set_gyro_offsets(static_cast<int16_t>(sum_gx / count), static_cast<int16_t>(sum_gy / count),
+                             static_cast<int16_t>(sum_gz / count));
     } else {
         ESP_LOGE(TAG, "Calibration Failed - No valid data");
     }
@@ -184,11 +185,9 @@ void drone_system_start(void)
 
     wifi_control_init();
 
-    motor_init();
+    drone::motor_init();
     
-    ESP_ERROR_CHECK(i2c_bus_init());
-
-    if (mpu6050_init() == ESP_OK) {
+    if (imu.init() == ESP_OK) {
         ESP_LOGI(TAG, "IMU active!");
         perform_calibration();
     } else {

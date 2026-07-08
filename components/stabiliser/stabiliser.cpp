@@ -108,5 +108,5 @@ void Stabiliser::mix_motors(float throttle, float roll, float pitch, float yaw) 
     motor_power_[2] = clamp_motor(m3);
     motor_power_[3] = clamp_motor(m4);
 
-    motor_set_all(motor_power_[0], motor_power_[1], motor_power_[2], motor_power_[3]);
+    drone::motor_set_all({motor_power_[0], motor_power_[1], motor_power_[2], motor_power_[3]});
 }

@@ -18,7 +18,7 @@ public:
     
     void init();
     
-    void update(mpu6050_data_t& imu_data, float dt);
+    void update(const drone::ImuSample& imu_data, float dt);
     
     estimated_state_t get_state() const { return state_; }
 
