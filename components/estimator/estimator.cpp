@@ -10,7 +10,7 @@ Estimator::Estimator() {
 void Estimator::init() {
 }
 
-void Estimator::update(mpu6050_data_t& imu_data, float dt) {
+void Estimator::update(const drone::ImuSample& imu_data, float dt) {
     //sensor mapping logic for rotated board
     float logical_acc_x = imu_data.accel_y;
     float logical_acc_y = imu_data.accel_x;
