@@ -1,43 +1,66 @@
 #include "estimator.h"
-#include <math.h>
+#include <cmath>
 
-#define RAD_TO_DEG 57.2957795131f
+namespace drone {
+namespace {
 
-Estimator::Estimator() {
-    state_ = {0};
+constexpr float rad_to_deg{57.2957795131f};
+constexpr float gyro_lsb_per_dps{65.5f};
+
+constexpr float q_angle{0.001f};
+constexpr float q_bias{0.003f};
+constexpr float r_measure{0.03f};
+
 }
 
-void Estimator::init() {
+float Kalman::update(const float measured_angle, const float rate, const float dt)
+{
+    angle_ += dt * (rate - bias_);
+
+    p_[0U][0U] += dt * (((dt * p_[1U][1U]) - p_[0U][1U]) - p_[1U][0U] + q_angle);
+    p_[0U][1U] -= dt * p_[1U][1U];
+    p_[1U][0U] -= dt * p_[1U][1U];
+    p_[1U][1U] += q_bias * dt;
+
+    const float s{p_[0U][0U] + r_measure};
+    const float k_0{p_[0U][0U] / s};
+    const float k_1{p_[1U][0U] / s};
+    const float y{measured_angle - angle_};
+
+    angle_ += k_0 * y;
+    bias_ += k_1 * y;
+
+    const float p00{p_[0U][0U]};
+    const float p01{p_[0U][1U]};
+
+    p_[0U][0U] -= k_0 * p00;
+    p_[0U][1U] -= k_0 * p01;
+    p_[1U][0U] -= k_1 * p00;
+    p_[1U][1U] -= k_1 * p01;
+
+    return angle_;
 }
 
-void Estimator::update(const drone::ImuSample& imu_data, float dt) {
-    //sensor mapping logic for rotated board
-    float logical_acc_x = imu_data.accel_y;
-    float logical_acc_y = imu_data.accel_x;
-    float logical_acc_z = imu_data.accel_z;
+void Estimator::update(const ImuSample& imu, const float dt)
+{
+    //sensor is rotated on the board so swap x/y and flip the gyro axes
+    const float acc_x{static_cast<float>(imu.accel_y)};
+    const float acc_y{static_cast<float>(imu.accel_x)};
+    const float acc_z{static_cast<float>(imu.accel_z)};
 
-    float logical_gyro_x = imu_data.gyro_y;
-    //invert pitch rate because sensor is flipped
-    float logical_gyro_y = -imu_data.gyro_x;
-    //invert yaw rate to match frame
-    float logical_gyro_z = -imu_data.gyro_z; 
+    const float rate_roll{-static_cast<float>(imu.gyro_y) / gyro_lsb_per_dps};
+    const float rate_pitch{-static_cast<float>(imu.gyro_x) / gyro_lsb_per_dps};
+    const float rate_yaw{-static_cast<float>(imu.gyro_z) / gyro_lsb_per_dps};
 
-    logical_gyro_x = -imu_data.gyro_y; 
+    const float acc_roll{std::atan2(acc_y, acc_z) * rad_to_deg};
+    const float acc_pitch{std::atan2(-acc_x, std::sqrt((acc_y * acc_y) + (acc_z * acc_z))) * rad_to_deg};
 
-    float acc_roll = atan2f(logical_acc_y, logical_acc_z) * RAD_TO_DEG;
-    float acc_pitch = atan2f(-logical_acc_x, sqrtf(powf(logical_acc_y, 2) + powf(logical_acc_z, 2))) * RAD_TO_DEG;
+    attitude_.roll = roll_filter_.update(acc_roll, rate_roll, dt);
+    attitude_.pitch = pitch_filter_.update(acc_pitch, rate_pitch, dt);
+    attitude_.yaw += rate_yaw * dt;
+    attitude_.roll_rate = rate_roll;
+    attitude_.pitch_rate = rate_pitch;
+    attitude_.yaw_rate = rate_yaw;
+}
 
-    float gyro_scale = 65.5f; 
-    float gyro_rate_roll = logical_gyro_x / gyro_scale;
-    float gyro_rate_pitch = logical_gyro_y / gyro_scale;
-    float gyro_rate_yaw = logical_gyro_z / gyro_scale;
-
-    state_.roll = kalman_roll_.get_angle(acc_roll, gyro_rate_roll, dt);
-    state_.pitch = kalman_pitch_.get_angle(acc_pitch, gyro_rate_pitch, dt);
-    
-    state_.yaw += gyro_rate_yaw * dt;
-
-    state_.roll_rate = gyro_rate_roll;
-    state_.pitch_rate = gyro_rate_pitch;
-    state_.yaw_rate = gyro_rate_yaw;
 }

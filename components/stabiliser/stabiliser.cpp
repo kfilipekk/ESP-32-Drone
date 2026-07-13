@@ -1,112 +1,100 @@
 #include "stabiliser.h"
-#include "motor.h"
 #include <algorithm>
 
-#define DT_SEC 0.001f
+namespace drone {
+namespace {
 
-#define CF_TO_DUTY_SCALE (100.0f / 65535.0f)
-#define RATE_RP_KP  250.0f
-#define RATE_RP_KI  500.0f
-#define RATE_RP_KD  2.5f
-#define RATE_RP_ILIMIT 33.3f
+constexpr float dt_sec{0.001f};
+constexpr float output_to_duty{100.0f / 65535.0f};
+constexpr float min_active_throttle{5.0f};
+constexpr float max_percent{100.0f};
 
-#define RATE_YAW_KP 120.0f
-#define RATE_YAW_KI 16.7f
-#define RATE_YAW_KD 0.0f
-#define RATE_YAW_ILIMIT 166.7f
+constexpr float rate_rp_kp{250.0f};
+constexpr float rate_rp_ki{500.0f};
+constexpr float rate_rp_kd{2.5f};
+constexpr float rate_rp_ilimit{33.3f};
 
-#define ANGLE_RP_KP 5.9f
-#define ANGLE_RP_KI 0.0f
-#define ANGLE_RP_KD 0.0f
-#define ANGLE_RP_ILIMIT 20.0f
+constexpr float rate_yaw_kp{120.0f};
+constexpr float rate_yaw_ki{16.7f};
+constexpr float rate_yaw_kd{0.0f};
+constexpr float rate_yaw_ilimit{166.7f};
 
-#define ANGLE_YAW_KP 6.0f
-#define ANGLE_YAW_KI 1.0f
-#define ANGLE_YAW_KD 0.35f
-#define ANGLE_YAW_ILIMIT 360.0f
+constexpr float angle_rp_kp{5.9f};
+constexpr float angle_rp_ki{0.0f};
+constexpr float angle_rp_kd{0.0f};
+constexpr float angle_rp_ilimit{20.0f};
 
-#define NO_LIMIT 0.0f
+float clamp_percent(const float value)
+{
+    return std::clamp(value, 0.0f, max_percent);
+}
+
+}
 
 Stabiliser::Stabiliser()
-    : current_mode_(STABILISER_MODE_ANGLE),
-      pid_rate_roll_(RATE_RP_KP, RATE_RP_KI, RATE_RP_KD, NO_LIMIT, RATE_RP_ILIMIT, DT_SEC),
-      pid_rate_pitch_(RATE_RP_KP, RATE_RP_KI, RATE_RP_KD, NO_LIMIT, RATE_RP_ILIMIT, DT_SEC),
-      pid_rate_yaw_(RATE_YAW_KP, RATE_YAW_KI, RATE_YAW_KD, NO_LIMIT, RATE_YAW_ILIMIT, DT_SEC),
-      pid_angle_roll_(ANGLE_RP_KP, ANGLE_RP_KI, ANGLE_RP_KD, NO_LIMIT, ANGLE_RP_ILIMIT, DT_SEC),
-      pid_angle_pitch_(ANGLE_RP_KP, ANGLE_RP_KI, ANGLE_RP_KD, NO_LIMIT, ANGLE_RP_ILIMIT, DT_SEC)
+    : angle_roll_{angle_rp_kp, angle_rp_ki, angle_rp_kd, angle_rp_ilimit, dt_sec},
+      angle_pitch_{angle_rp_kp, angle_rp_ki, angle_rp_kd, angle_rp_ilimit, dt_sec},
+      rate_roll_{rate_rp_kp, rate_rp_ki, rate_rp_kd, rate_rp_ilimit, dt_sec},
+      rate_pitch_{rate_rp_kp, rate_rp_ki, rate_rp_kd, rate_rp_ilimit, dt_sec},
+      rate_yaw_{rate_yaw_kp, rate_yaw_ki, rate_yaw_kd, rate_yaw_ilimit, dt_sec}
 {
 }
 
-void Stabiliser::init() {
-    pid_rate_roll_.reset();
-    pid_rate_pitch_.reset();
-    pid_rate_yaw_.reset();
-    pid_angle_roll_.reset();
-    pid_angle_pitch_.reset();
+void Stabiliser::reset()
+{
+    angle_roll_.reset();
+    angle_pitch_.reset();
+    rate_roll_.reset();
+    rate_pitch_.reset();
+    rate_yaw_.reset();
 }
 
-void Stabiliser::run(state_estimate_t state, control_command_t command) {
-    float target_rate_roll = 0.0f;
-    float target_rate_pitch = 0.0f;
-    float target_rate_yaw = command.yaw;
-    
-    if (current_mode_ == STABILISER_MODE_ANGLE) {
-        target_rate_roll = pid_angle_roll_.compute(command.roll, state.roll);
-        target_rate_pitch = pid_angle_pitch_.compute(command.pitch, state.pitch);
+void Stabiliser::tune(const std::int32_t target, const float kp, const float ki, const float kd)
+{
+    if (target == 0) {
+        rate_roll_.set_gains(kp, ki, kd);
+        rate_pitch_.set_gains(kp, ki, kd);
+    } else if (target == 1) {
+        rate_yaw_.set_gains(kp, ki, kd);
+    } else if (target == 2) {
+        angle_roll_.set_gains(kp, ki, kd);
+        angle_pitch_.set_gains(kp, ki, kd);
     } else {
-        target_rate_roll = command.roll;
-        target_rate_pitch = command.pitch;
+        //unknown target ignored
     }
-
-    float roll_output = pid_rate_roll_.compute(target_rate_roll, state.roll_rate);
-    float pitch_output = pid_rate_pitch_.compute(target_rate_pitch, state.pitch_rate);
-    float yaw_output = pid_rate_yaw_.compute(target_rate_yaw, state.yaw_rate);
-
-    //safety: if throttle is low, disable i-term windup and zero output
-    //this prevents the drone from spinning up motors when sitting on the ground tilted
-    if (command.throttle < 5.0f) {
-        pid_rate_roll_.reset();
-        pid_rate_pitch_.reset();
-        pid_rate_yaw_.reset();
-        pid_angle_roll_.reset();
-        pid_angle_pitch_.reset();
-        
-        roll_output = 0;
-        pitch_output = 0;
-        yaw_output = 0;
-    }
-
-    roll_output *= CF_TO_DUTY_SCALE;
-    pitch_output *= CF_TO_DUTY_SCALE;
-    yaw_output *= CF_TO_DUTY_SCALE;
-
-    mix_motors(command.throttle, roll_output, pitch_output, yaw_output);
 }
 
-void Stabiliser::mix_motors(float throttle, float roll, float pitch, float yaw) {
-    if(throttle < 0) throttle = 0;
-    if(throttle > 100) throttle = 100;
-    
-    //m1: front left (cw)
-    //m2: front right (ccw)
-    //m3: rear right (cw)
-    //m4: rear left (ccw)
-    //mixing logic for torque and thrust
-    float m1 = throttle + roll + pitch - yaw; //fl
-    float m2 = throttle - roll + pitch + yaw; //fr
-    float m3 = throttle - roll - pitch - yaw; //rr
-    float m4 = throttle + roll - pitch + yaw; //rl
+void Stabiliser::run(const Attitude& attitude, const ControlCommand& command)
+{
+    const float target_roll_rate{angle_roll_.compute(command.roll, attitude.roll)};
+    const float target_pitch_rate{angle_pitch_.compute(command.pitch, attitude.pitch)};
 
-    auto clamp_motor = [](float val) -> float {
-        if(val < 0.0f) return 0.0f;
-        if(val > 100.0f) return 100.0f;
-        return val;
-    };
+    float roll_output{rate_roll_.compute(target_roll_rate, attitude.roll_rate)};
+    float pitch_output{rate_pitch_.compute(target_pitch_rate, attitude.pitch_rate)};
+    float yaw_output{rate_yaw_.compute(command.yaw, attitude.yaw_rate)};
 
-    motor_power_[0] = clamp_motor(m1);
-    motor_power_[1] = clamp_motor(m2);
-    motor_power_[2] = clamp_motor(m3);
-    motor_power_[3] = clamp_motor(m4);
+    //no correction or windup while idle so it cannot spin up tilted on the ground
+    if (command.throttle < min_active_throttle) {
+        reset();
+        roll_output = 0.0f;
+        pitch_output = 0.0f;
+        yaw_output = 0.0f;
+    }
 
-    drone::motor_set_all({motor_power_[0], motor_power_[1], motor_power_[2], motor_power_[3]});
+    mix_motors(command.throttle, roll_output * output_to_duty, pitch_output * output_to_duty,
+               yaw_output * output_to_duty);
+}
+
+void Stabiliser::mix_motors(const float throttle, const float roll, const float pitch, const float yaw)
+{
+    //quad x with front left and rear right spinning cw
+    const float base{clamp_percent(throttle)};
+    motor_power_[0U] = clamp_percent(((base + roll) + pitch) - yaw);
+    motor_power_[1U] = clamp_percent(((base - roll) + pitch) + yaw);
+    motor_power_[2U] = clamp_percent(((base - roll) - pitch) - yaw);
+    motor_power_[3U] = clamp_percent(((base + roll) - pitch) + yaw);
+
+    motor_set_all(motor_power_);
+}
+
 }

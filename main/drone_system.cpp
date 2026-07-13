@@ -23,9 +23,9 @@ static const char *TAG = "DRONE_SYSTEM";
 #define LED_BLUE_GPIO   GPIO_NUM_7
 
 static drone::Mpu6050 imu;
-static Stabiliser stabiliser;
-static Estimator estimator;
-static control_command_t current_command = {0};
+static drone::Stabiliser stabiliser;
+static drone::Estimator estimator;
+static drone::ControlCommand current_command{};
 
 static void configure_led(gpio_num_t pin) {
     gpio_reset_pin(pin);
@@ -71,14 +71,7 @@ void flight_task(void *pvParameters) {
         if (imu.read(imu_data) == ESP_OK) {
              estimator.update(imu_data, dt);
              
-             state_estimate_t state = {
-                 .roll = estimator.get_state().roll,
-                 .pitch = estimator.get_state().pitch,
-                 .yaw = estimator.get_state().yaw,
-                 .roll_rate = estimator.get_state().roll_rate,
-                 .pitch_rate = estimator.get_state().pitch_rate,
-                 .yaw_rate = estimator.get_state().yaw_rate
-             };
+             const drone::Attitude& state = estimator.attitude();
              
              //emergency kill switch: tilt > 45 degrees
              static bool emergency_stop = false;
@@ -107,14 +100,14 @@ void flight_task(void *pvParameters) {
              if (telem_divider++ >= 50) {
                  telem_divider = 0;
                  //debug info for pitch rate loop
-                 Pid* pitch_pid = stabiliser.get_pid_rate_pitch();
+                 const drone::Pid& pitch_pid = stabiliser.rate_pitch();
+                 const drone::MotorDuty& motors = stabiliser.motor_outputs();
                  
                  wifi_control_send_telemetry(state.roll, state.pitch, state.yaw, get_battery_voltage(),
                     imu_data.accel_x, imu_data.accel_y, imu_data.accel_z,
                     imu_data.gyro_x, imu_data.gyro_y, imu_data.gyro_z,
-                    stabiliser.get_motor_output(0), stabiliser.get_motor_output(1),
-                    stabiliser.get_motor_output(2), stabiliser.get_motor_output(3),
-                    pitch_pid->get_last_p(), pitch_pid->get_last_i(), pitch_pid->get_last_d());
+                    motors[0], motors[1], motors[2], motors[3],
+                    pitch_pid.last_p(), pitch_pid.integral(), pitch_pid.last_d());
              }
         }
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -197,8 +190,6 @@ void drone_system_start(void)
         gpio_set_level(LED_RED_GPIO, 1);
     }
     
-    stabiliser.init();
-    estimator.init();
 
     xTaskCreatePinnedToCore(flight_task, "flight_task", 4096, NULL, 5, NULL, 0);
 
@@ -234,15 +225,7 @@ void drone_system_start(void)
              if (data.has_tuning) {
                  ESP_LOGW(TAG, "Tuning ID:%d P:%.2f I:%.2f D:%.2f", 
                     data.tuning_id, data.kp, data.ki, data.kd);
-                 if (data.tuning_id == 0) {
-                     stabiliser.get_pid_rate_roll()->set_gains(data.kp, data.ki, data.kd);
-                     stabiliser.get_pid_rate_pitch()->set_gains(data.kp, data.ki, data.kd);
-                 } else if (data.tuning_id == 1) {
-                     stabiliser.get_pid_rate_yaw()->set_gains(data.kp, data.ki, data.kd);
-                 } else if (data.tuning_id == 2) {
-                     stabiliser.get_pid_angle_roll()->set_gains(data.kp, data.ki, data.kd);
-                     stabiliser.get_pid_angle_pitch()->set_gains(data.kp, data.ki, data.kd);
-                 }
+                 stabiliser.tune(data.tuning_id, data.kp, data.ki, data.kd);
              }
         }
 

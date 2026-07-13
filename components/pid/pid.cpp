@@ -1,10 +1,11 @@
 #include "pid.h"
-#include <math.h>
+#include <algorithm>
 
-Pid::Pid(float kp, float ki, float kd, float output_limit, float integral_limit, float dt)
-    : kp_(kp), ki_(ki), kd_(kd), output_limit_(output_limit), integral_limit_(integral_limit), dt_(dt)
+namespace drone {
+
+Pid::Pid(const float kp, const float ki, const float kd, const float integral_limit, const float dt)
+    : kp_{kp}, ki_{ki}, kd_{kd}, integral_limit_{integral_limit}, dt_{dt}
 {
-    reset();
 }
 
 void Pid::reset()
@@ -13,47 +14,24 @@ void Pid::reset()
     prev_error_ = 0.0f;
 }
 
-void Pid::set_gains(float kp, float ki, float kd)
+void Pid::set_gains(const float kp, const float ki, const float kd)
 {
     kp_ = kp;
     ki_ = ki;
     kd_ = kd;
 }
 
-float Pid::compute(float setpoint, float measurement)
+float Pid::compute(const float setpoint, const float measurement)
 {
-    float error = setpoint - measurement;
+    const float error{setpoint - measurement};
 
-    float p_out = kp_ * error;
+    integral_ = std::clamp(integral_ + (error * dt_), -integral_limit_, integral_limit_);
 
-    integral_ += error * dt_;
-
-    if (integral_ > integral_limit_) {
-        integral_ = integral_limit_;
-    } else if (integral_ < -integral_limit_) {
-        integral_ = -integral_limit_;
-    }
-
-    float i_out = ki_ * integral_;
-
-    float derivative = (error - prev_error_) / dt_;
-    float d_out = kd_ * derivative;
-
+    last_p_ = kp_ * error;
+    last_d_ = kd_ * ((error - prev_error_) / dt_);
     prev_error_ = error;
 
-    float output = p_out + i_out + d_out;
-    
-    //Debug storage
-    last_p_ = p_out;
-    last_d_ = d_out;
+    return last_p_ + (ki_ * integral_) + last_d_;
+}
 
-    if (output_limit_ != 0.0f) { //Only limit if non-zero
-        if (output > output_limit_) {
-            output = output_limit_;
-        } else if (output < -output_limit_) {
-            output = -output_limit_;
-        }
-    }
-
-    return output;
 }
