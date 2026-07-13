@@ -1,30 +1,42 @@
-#pragma once
+#ifndef ESTIMATOR_H
+#define ESTIMATOR_H
 
+#include <array>
 #include "mpu6050.h"
-#include "kalman.h"
 
-typedef struct {
+namespace drone {
+
+//angles in degrees, rates in degrees per second
+struct Attitude {
     float roll;
     float pitch;
     float yaw;
     float roll_rate;
     float pitch_rate;
     float yaw_rate;
-} estimated_state_t;
+};
+
+class Kalman {
+public:
+    float update(float measured_angle, float rate, float dt);
+
+private:
+    float angle_{0.0f};
+    float bias_{0.0f};
+    std::array<std::array<float, 2U>, 2U> p_{};
+};
 
 class Estimator {
 public:
-    Estimator();
-    
-    void init();
-    
-    void update(const drone::ImuSample& imu_data, float dt);
-    
-    estimated_state_t get_state() const { return state_; }
+    void update(const ImuSample& imu, float dt);
+    const Attitude& attitude() const { return attitude_; }
 
 private:
-    Kalman kalman_roll_;
-    Kalman kalman_pitch_;
-
-    estimated_state_t state_;
+    Kalman roll_filter_;
+    Kalman pitch_filter_;
+    Attitude attitude_{};
 };
+
+}
+
+#endif
