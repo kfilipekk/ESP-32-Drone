@@ -1,35 +1,62 @@
-#pragma once
+#ifndef WIFI_CONTROL_H
+#define WIFI_CONTROL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <array>
+#include <atomic>
+#include <cstdint>
+#include <mutex>
+#include "esp_event.h"
+#include "esp_websocket_client.h"
 
-//Initialise Wi-Fi Access Point and Web Server
-void wifi_control_init(void);
+namespace drone {
 
-typedef struct {
+struct RemoteCommand {
     float throttle;
     float roll;
     float pitch;
     float yaw;
-    
-    int has_tuning;
-    int tuning_id;
+    bool has_tuning;
+    std::int32_t tuning_id;
     float kp;
     float ki;
     float kd;
+};
 
-} wifi_control_data_t;
+struct Telemetry {
+    float roll;
+    float pitch;
+    float yaw;
+    float voltage;
+    std::int16_t ax;
+    std::int16_t ay;
+    std::int16_t az;
+    std::int16_t gx;
+    std::int16_t gy;
+    std::int16_t gz;
+    std::array<float, 4U> motors;
+    float p_term;
+    float i_term;
+    float d_term;
+};
 
-//get the latest control values
-int wifi_control_get_data(wifi_control_data_t *control);
+class WifiControl {
+public:
+    void init();
+    bool poll(RemoteCommand& command);
+    void send(const Telemetry& telemetry) const;
 
-void wifi_control_send_telemetry(float roll, float pitch, float yaw, float voltage, 
-                                 int16_t ax, int16_t ay, int16_t az, 
-                                 int16_t gx, int16_t gy, int16_t gz,
-                                 float m1, float m2, float m3, float m4,
-                                 float p_term, float i_term, float d_term);
+private:
+    static void on_wifi_event(void* arg, esp_event_base_t base, std::int32_t id, void*);
+    static void on_websocket_event(void* arg, esp_event_base_t, std::int32_t id, void* data);
+    void start_websocket();
+    void parse(const char* text, int length);
 
-#ifdef __cplusplus
+    std::mutex mutex_;
+    RemoteCommand latest_{};
+    bool fresh_{false};
+    std::atomic<esp_websocket_client_handle_t> client_{nullptr};
+};
+
 }
+
 #endif
