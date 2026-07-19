@@ -1,4 +1,5 @@
 #include "drone_system.h"
+#include <cinttypes>
 #include <stdio.h>
 #include <fcntl.h>
 #include <math.h>
@@ -23,6 +24,7 @@ static const char *TAG = "DRONE_SYSTEM";
 #define LED_BLUE_GPIO   GPIO_NUM_7
 
 static drone::Mpu6050 imu;
+static drone::WifiControl wifi;
 static drone::Stabiliser stabiliser;
 static drone::Estimator estimator;
 static drone::ControlCommand current_command{};
@@ -101,13 +103,22 @@ void flight_task(void *pvParameters) {
                  telem_divider = 0;
                  //debug info for pitch rate loop
                  const drone::Pid& pitch_pid = stabiliser.rate_pitch();
-                 const drone::MotorDuty& motors = stabiliser.motor_outputs();
-                 
-                 wifi_control_send_telemetry(state.roll, state.pitch, state.yaw, get_battery_voltage(),
-                    imu_data.accel_x, imu_data.accel_y, imu_data.accel_z,
-                    imu_data.gyro_x, imu_data.gyro_y, imu_data.gyro_z,
-                    motors[0], motors[1], motors[2], motors[3],
-                    pitch_pid.last_p(), pitch_pid.integral(), pitch_pid.last_d());
+                 drone::Telemetry telemetry{};
+                 telemetry.roll = state.roll;
+                 telemetry.pitch = state.pitch;
+                 telemetry.yaw = state.yaw;
+                 telemetry.voltage = get_battery_voltage();
+                 telemetry.ax = imu_data.accel_x;
+                 telemetry.ay = imu_data.accel_y;
+                 telemetry.az = imu_data.accel_z;
+                 telemetry.gx = imu_data.gyro_x;
+                 telemetry.gy = imu_data.gyro_y;
+                 telemetry.gz = imu_data.gyro_z;
+                 telemetry.motors = stabiliser.motor_outputs();
+                 telemetry.p_term = pitch_pid.last_p();
+                 telemetry.i_term = pitch_pid.integral();
+                 telemetry.d_term = pitch_pid.last_d();
+                 wifi.send(telemetry);
              }
         }
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -176,7 +187,7 @@ void drone_system_start(void)
     //indicate start (blue)
     gpio_set_level(LED_BLUE_GPIO, 1);
 
-    wifi_control_init();
+    wifi.init();
 
     drone::motor_init();
     
@@ -212,8 +223,8 @@ void drone_system_start(void)
 
 
     while (1) {
-        wifi_control_data_t data;
-        if (wifi_control_get_data(&data)) {
+        drone::RemoteCommand data{};
+        if (wifi.poll(data)) {
              ESP_LOGI(TAG, "WiFi -> T:%.1f, R:%.1f, P:%.1f, Y:%.1f", 
                 data.throttle, data.roll, data.pitch, data.yaw);
              
@@ -223,7 +234,7 @@ void drone_system_start(void)
              current_command.yaw = data.yaw;
 
              if (data.has_tuning) {
-                 ESP_LOGW(TAG, "Tuning ID:%d P:%.2f I:%.2f D:%.2f", 
+                 ESP_LOGW(TAG, "Tuning ID:%" PRId32 " P:%.2f I:%.2f D:%.2f", 
                     data.tuning_id, data.kp, data.ki, data.kd);
                  stabiliser.tune(data.tuning_id, data.kp, data.ki, data.kd);
              }
