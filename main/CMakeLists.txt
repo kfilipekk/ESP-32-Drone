@@ -1,5 +1,2 @@
-idf_component_register(SRCS "main.cpp" "drone_system.cpp"
-                    INCLUDE_DIRS "."
-                    REQUIRES driver mpu6050 motor wifi_control pid stabiliser estimator esp_adc)
-
-
+idf_component_register(SRCS "main.cpp"
+                       PRIV_REQUIRES esp_driver_gpio esp_adc esp_timer mpu6050 estimator stabiliser wifi_control)
