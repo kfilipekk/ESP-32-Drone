@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A flight controller software stack written in C/C++ for the ESP32 microcontroller.
+A flight controller software stack written in C++ to the MISRA C++:2023 guidelines for the ESP32-S2 microcontroller.
 
 ![Drone Hardware](docs/images/1.png)
 
@@ -18,7 +18,7 @@ A flight controller software stack written in C/C++ for the ESP32 microcontrolle
 *   State Estimation: 6-axis Kalman Filter fusing MPU6050 Gyroscope and Accelerometer data.
 *   Motor Drive: High-resolution 12-bit PWM at 15kHz (LEDC hardware timer) for smooth motor response using standard MOS driver circuits.
 *   Connectivity:
-    *   WebSocket server for low-latency control commands ([Website](https://krystianfilipek.com)), can be controlled from anywhere.
+    *   WebSocket client for low-latency control commands ([Website](https://krystianfilipek.com)), can be controlled from anywhere.
     *   Python-based telemetry logger (`collect_telemetry.py`) for analysis
 *   Safety: Low-throttle startup protection and fail-safe logic.
 
@@ -28,7 +28,7 @@ A flight controller software stack written in C/C++ for the ESP32 microcontrolle
 | :--- | :--- | :--- |
 | MCU | ESP32-S2-Mini
 | Loop Frequency | 1 kHz | 1ms Loop Time (Task Priority 5) |
-| Sensor Protocol | I2C | 400kHz Fast-Mode |
+| Sensor Protocol | I2C | 100kHz Standard-Mode |
 | PWM Output | 15 kHz | 12-bit Resolution (4096 steps) |
 | Control Interface | WebSocket | JSON Protocol (Roll/Pitch/Yaw/Throttle) |
 | Frame Type | Quad-X | Standard mixing |
@@ -37,7 +37,27 @@ A flight controller software stack written in C/C++ for the ESP32 microcontrolle
 
 The system relies on FreeRTOS to handle real-time constraints on the single-core ESP32-S2:
 1.  Flight Task (Priority 5, High): Reads sensors $\rightarrow$ Kalman Filter $\rightarrow$ PID Calculations $\rightarrow$ Motor Mixing $\rightarrow$ PWM Output.
-2.  WiFi/Comm Task (Lower Priority): Handles asynchronous web traffic, parses incoming control packets and queues them for the flight task.
+2.  WiFi/Comm Task (Lower Priority): Handles asynchronous web traffic, parses incoming control packets and hands them to the flight task through a mutex guarded command slot.
+
+## MISRA C++ Guidelines
+
+The firmware follows MISRA C++:2023. All project code is C++ inside the `drone` namespace, with only `app_main` at global scope.
+
+*   No mutable globals or function-local statics. State lives in `DroneSystem` and reaches callbacks through their context pointer.
+*   Constants are `constexpr`, no macros are defined and headers use include guards.
+*   Conversions are explicit `static_cast`s, unsigned literals carry a `U` suffix and `std::array`/`std::span` replace C arrays.
+*   Every body is braced, every `if`/`else if` chain ends in `else` and discarded return values are cast to `void`.
+*   No heap or `printf` family calls in project code. Telemetry JSON is written into a fixed buffer.
+*   Data shared between the flight task and the network tasks is guarded by `std::mutex` and `std::atomic`.
+
+### Deviations
+
+| Rule | Where | Rationale |
+| :--- | :--- | :--- |
+| 8.2.2, 30.0.1 | `ESP_LOGx`, `ESP_ERROR_CHECK`, `pdMS_TO_TICKS`, `WIFI_INIT_CONFIG_DEFAULT` | ESP-IDF and FreeRTOS macros expand to C-style casts and `printf` style logging. They are the vendor interface and are not reimplemented. |
+| 8.2.6 | FreeRTOS task entry, Wi-Fi and WebSocket event handlers | C callback APIs pass context as `void*`. Each cast restores the exact type that was registered. |
+| 21.6.1 | `std::mutex`, cJSON, ESP-IDF drivers | Allocation happens only inside library code (mutex creation, JSON parsing, driver setup), never in project code. |
+| 6.9.2 | ADC reading, I2C timeout, WebSocket lengths | `int` is used only where the ESP-IDF signature requires it. |
 
 ## Telemetry & Analysis
 
@@ -56,20 +76,20 @@ python collect_telemetry.py
 ## Getting Started
 
 ### Prerequisites
-*   [ESP-IDF v5.x](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/)
+*   [ESP-IDF v5.5 or v6.0](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/)
 *   Python 3.10+ (for telemetry script)
 
 ### Build Instructions
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/kfilipekk/drone-esp32.git
-    cd drone-esp32
+    git clone https://github.com/kfilipekk/ESP-32-Drone.git
+    cd ESP-32-Drone
     ```
 
 2.  **Configure ESP-IDF:**
     ```bash
-    idf.py set-target esp32
+    idf.py set-target esp32s2
     idf.py menuconfig
     ```
 
